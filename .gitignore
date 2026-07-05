@@ -2,3 +2,5 @@
 # Igonre pycache file
 *.pyc
 /__pycache__/*
+
+/active

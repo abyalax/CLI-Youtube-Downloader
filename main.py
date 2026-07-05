@@ -2,7 +2,7 @@
 """
 YouTube Media Bulk Downloader
 Downloads audio or video from YouTube videos listed in a .txt file
-Features: Resume capability, skip duplicates, organized output folders, audio/video mode selection
+Features: Resume capability, skip duplicates, organized output folders, audio/video/video-only mode selection
 """
 
 import os
@@ -15,7 +15,7 @@ import argparse
 
 
 class YouTubeMediaDownloader:
-    def __init__(self, links_file, output_dir="downloads", resume=True, ffmpeg_path=None, single_link=None, download_video=False):
+    def __init__(self, links_file, output_dir="downloads", resume=True, ffmpeg_path=None, single_link=None, download_video=False, video_only=False):
         """
         Initialize downloader
         
@@ -26,6 +26,7 @@ class YouTubeMediaDownloader:
             ffmpeg_path: Custom path to FFmpeg binary
             single_link: Download single link instead of file
             download_video: Download video instead of audio (default: False)
+            video_only: Download video only without audio (default: False)
         """
         self.links_file = links_file
         self.single_link = single_link
@@ -35,6 +36,7 @@ class YouTubeMediaDownloader:
         self.resume = resume
         self.ffmpeg_path = ffmpeg_path
         self.download_video = download_video
+        self.video_only = video_only
         
         # Set FFmpeg location if provided
         if ffmpeg_path:
@@ -99,7 +101,12 @@ class YouTubeMediaDownloader:
         print(f"Found {len(links)} link(s) to process")
         print(f"Output directory: {self.output_dir.resolve()}")
         print(f"Resume mode: {'ON' if self.resume else 'OFF'}")
-        print(f"Download mode: {'VIDEO' if self.download_video else 'AUDIO'}")
+        if self.video_only:
+            print(f"Download mode: VIDEO ONLY")
+        elif self.download_video:
+            print(f"Download mode: VIDEO")
+        else:
+            print(f"Download mode: AUDIO")
         print("-" * 60)
         
         successful = 0
@@ -144,8 +151,22 @@ class YouTubeMediaDownloader:
     def _download_media(self, url):
         """Download audio or video from single YouTube URL"""
         try:
-            if self.download_video:
-                # Download best video quality
+            if self.video_only:
+                # Download video only (no audio)
+                ydl_opts = {
+                    'format': 'bestvideo',
+                    'outtmpl': str(self.output_dir / '%(title)s.%(ext)s'),
+                    'quiet': False,
+                    'no_warnings': False,
+                    'socket_timeout': 30,
+                    'progress_hooks': [self._progress_hook],
+                    'ignoreerrors': True,
+                    'no_color': True,
+                    'nocheckcertificate': True,
+                    'no_warnings': True,
+                }
+            elif self.download_video:
+                # Download best video quality with audio
                 ydl_opts = {
                     'format': 'bestvideo+bestaudio/best',
                     'outtmpl': str(self.output_dir / '%(title)s.%(ext)s'),
@@ -153,14 +174,11 @@ class YouTubeMediaDownloader:
                     'no_warnings': False,
                     'socket_timeout': 30,
                     'progress_hooks': [self._progress_hook],
-                    'extractor_args': {
-                        'youtube': {
-                            'player_client': ['android', 'web'],
-                        }
-                    },
                     'ignoreerrors': True,
                     'no_color': True,
                     'nocheckcertificate': True,
+                    'no_warnings': True,
+                    'merge_output_format': 'mp4',
                 }
             else:
                 # Download audio (default)
@@ -173,14 +191,9 @@ class YouTubeMediaDownloader:
                     }],
                     'outtmpl': str(self.output_dir / '%(title)s.%(ext)s'),
                     'quiet': False,
-                    'no_warnings': False,
+                    'no_warnings': True,
                     'socket_timeout': 30,
                     'progress_hooks': [self._progress_hook],
-                    'extractor_args': {
-                        'youtube': {
-                            'player_client': ['android', 'web'],
-                        }
-                    },
                     'ignoreerrors': True,
                     'no_color': True,
                     'nocheckcertificate': True,
@@ -238,12 +251,19 @@ Examples:
   python main.py links.txt --video
   python main.py links.txt --video -o custom_folder
   
+  # Download video only (no audio) from file
+  python main.py links.txt --video-only
+  python main.py links.txt --video-only -o custom_folder
+  
   # Download single audio link
   python main.py --link "https://youtu.be/xxxxx"
   python main.py --link "https://youtu.be/xxxxx" -o custom_folder
   
   # Download single video link
   python main.py --link "https://youtu.be/xxxxx" --video
+  
+  # Download single video only link (no audio)
+  python main.py --link "https://youtu.be/xxxxx" --video-only
         '''
     )
     
@@ -253,8 +273,14 @@ Examples:
     parser.add_argument('--no-resume', action='store_true', help='Disable resume mode')
     parser.add_argument('--ffmpeg-path', default=None, help='Custom FFmpeg path')
     parser.add_argument('--video', action='store_true', help='Download video instead of audio (default: audio)')
+    parser.add_argument('--video-only', action='store_true', help='Download video only without audio (default: disabled)')
     
     args = parser.parse_args()
+    
+    # Validate mutually exclusive options
+    if args.video_only and not args.video:
+        # If --video-only is used, automatically enable --video
+        args.video = True
     
     # Validate input
     if args.link:
@@ -276,7 +302,8 @@ Examples:
         resume=not args.no_resume,
         ffmpeg_path=args.ffmpeg_path,
         single_link=single_link,
-        download_video=args.video
+        download_video=args.video,
+        video_only=args.video_only
     )
     
     downloader.download()
