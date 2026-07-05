@@ -24,7 +24,12 @@ classifiers = [
     "Topic :: Multimedia :: Sound/Audio",
 ]
 
-dependencies = ["yt-dlp>=2024.1.0"]
+dependencies = [
+    "yt-dlp>=2024.1.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
 
 [project.urls]
 Homepage = "https://github.com/yourusername/youtube-audio-downloader"
