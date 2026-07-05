@@ -1,0 +1,4 @@
+
+# Igonre pycache file
+*.pyc
+/__pycache__/*

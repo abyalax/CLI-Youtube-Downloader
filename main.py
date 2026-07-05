@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-YouTube Audio Bulk Downloader
-Downloads audio from YouTube videos listed in a .txt file
-Features: Resume capability, skip duplicates, organized output folders
+YouTube Media Bulk Downloader
+Downloads audio or video from YouTube videos listed in a .txt file
+Features: Resume capability, skip duplicates, organized output folders, audio/video mode selection
 """
 
 import os
@@ -14,8 +14,8 @@ import yt_dlp
 import argparse
 
 
-class YouTubeAudioDownloader:
-    def __init__(self, links_file, output_dir="downloads", resume=True, ffmpeg_path=None, single_link=None):
+class YouTubeMediaDownloader:
+    def __init__(self, links_file, output_dir="downloads", resume=True, ffmpeg_path=None, single_link=None, download_video=False):
         """
         Initialize downloader
         
@@ -25,6 +25,7 @@ class YouTubeAudioDownloader:
             resume: Whether to skip already downloaded files
             ffmpeg_path: Custom path to FFmpeg binary
             single_link: Download single link instead of file
+            download_video: Download video instead of audio (default: False)
         """
         self.links_file = links_file
         self.single_link = single_link
@@ -33,6 +34,7 @@ class YouTubeAudioDownloader:
         
         self.resume = resume
         self.ffmpeg_path = ffmpeg_path
+        self.download_video = download_video
         
         # Set FFmpeg location if provided
         if ffmpeg_path:
@@ -48,7 +50,7 @@ class YouTubeAudioDownloader:
                 with open(self.log_file, 'r', encoding='utf-8') as f:
                     return json.load(f)
             except Exception as e:
-                print(f"⚠️  Error loading log file: {e}")
+                print(f"Error loading log file: {e}")
                 return {}
         return {}
     
@@ -58,7 +60,7 @@ class YouTubeAudioDownloader:
             with open(self.log_file, 'w', encoding='utf-8') as f:
                 json.dump(self.downloaded, f, indent=2, ensure_ascii=False)
         except Exception as e:
-            print(f"⚠️  Error saving log file: {e}")
+            print(f"Error saving log file: {e}")
     
     def _read_links(self):
         """Read YouTube links from .txt file or return single link"""
@@ -72,10 +74,10 @@ class YouTubeAudioDownloader:
                 links = [line.strip() for line in f if line.strip()]
             return links
         except FileNotFoundError:
-            print(f"❌ File not found: {self.links_file}")
+            print(f"File not found: {self.links_file}")
             sys.exit(1)
         except Exception as e:
-            print(f"❌ Error reading file: {e}")
+            print(f"Error reading file: {e}")
             sys.exit(1)
     
     def _get_safe_filename(self, title, url):
@@ -91,12 +93,13 @@ class YouTubeAudioDownloader:
         links = self._read_links()
         
         if not links:
-            print("⚠️  No links found in file")
+            print("WARNING: No links found in file")
             return
         
-        print(f"📋 Found {len(links)} link(s) to process")
-        print(f"📁 Output directory: {self.output_dir.resolve()}")
-        print(f"⏸️  Resume mode: {'ON' if self.resume else 'OFF'}")
+        print(f"Found {len(links)} link(s) to process")
+        print(f"Output directory: {self.output_dir.resolve()}")
+        print(f"Resume mode: {'ON' if self.resume else 'OFF'}")
+        print(f"Download mode: {'VIDEO' if self.download_video else 'AUDIO'}")
         print("-" * 60)
         
         successful = 0
@@ -108,12 +111,12 @@ class YouTubeAudioDownloader:
             
             # Check if already downloaded
             if self.resume and url in self.downloaded:
-                print(f"✅ Already downloaded: {self.downloaded[url]}")
+                print(f"Already downloaded: {self.downloaded[url]}")
                 skipped += 1
                 continue
             
             try:
-                title = self._download_audio(url)
+                title = self._download_media(url)
                 if title:
                     self.downloaded[url] = {
                         "title": title,
@@ -121,50 +124,67 @@ class YouTubeAudioDownloader:
                     }
                     self._save_log()
                     successful += 1
-                    print(f"✅ Success: {title}")
+                    print(f"Success: {title}")
                 else:
                     failed += 1
             except Exception as e:
-                print(f"❌ Failed: {str(e)[:100]}")
+                print(f"Failed: {str(e)[:100]}")
                 failed += 1
         
         # Print summary
         print("\n" + "=" * 60)
-        print("📊 DOWNLOAD SUMMARY")
+        print("DOWNLOAD SUMMARY")
         print("=" * 60)
-        print(f"✅ Successful: {successful}")
-        print(f"⏭️  Skipped (already exist): {skipped}")
-        print(f"❌ Failed: {failed}")
-        print(f"📁 Output folder: {self.output_dir.resolve()}")
+        print(f"Successful: {successful}")
+        print(f"Skipped (already exist): {skipped}")
+        print(f"Failed: {failed}")
+        print(f"Output folder: {self.output_dir.resolve()}")
         print("=" * 60)
     
-    def _download_audio(self, url):
-        """Download audio from single YouTube URL"""
+    def _download_media(self, url):
+        """Download audio or video from single YouTube URL"""
         try:
-            ydl_opts = {
-                'format': 'bestaudio/best',
-                'postprocessors': [{
-                    'key': 'FFmpegExtractAudio',
-                    'preferredcodec': 'mp3',
-                    'preferredquality': '192',
-                }],
-                'outtmpl': str(self.output_dir / '%(title)s.%(ext)s'),
-                'quiet': False,
-                'no_warnings': False,
-                'socket_timeout': 30,
-                'progress_hooks': [self._progress_hook],
-                'js_runtimes': {
-                    'node': {},
-                    'bun': {}
-                },  # Use Node.js or Bun for YouTube extraction
-                'extractor_args': {
-                    'youtube': {
-                        'skip': ['hls', 'dash'],  # Skip HLS/DASH to improve compatibility
-                    }
-                },
-                'ignoreerrors': False,
-                'no_color': True,
-            }
+            if self.download_video:
+                # Download best video quality
+                ydl_opts = {
+                    'format': 'bestvideo+bestaudio/best',
+                    'outtmpl': str(self.output_dir / '%(title)s.%(ext)s'),
+                    'quiet': False,
+                    'no_warnings': False,
+                    'socket_timeout': 30,
+                    'progress_hooks': [self._progress_hook],
+                    'extractor_args': {
+                        'youtube': {
+                            'player_client': ['android', 'web'],
+                        }
+                    },
+                    'ignoreerrors': True,
+                    'no_color': True,
+                    'nocheckcertificate': True,
+                }
+            else:
+                # Download audio (default)
+                ydl_opts = {
+                    'format': 'bestaudio/best',
+                    'postprocessors': [{
+                        'key': 'FFmpegExtractAudio',
+                        'preferredcodec': 'mp3',
+                        'preferredquality': '192',
+                    }],
+                    'outtmpl': str(self.output_dir / '%(title)s.%(ext)s'),
+                    'quiet': False,
+                    'no_warnings': False,
+                    'socket_timeout': 30,
+                    'progress_hooks': [self._progress_hook],
+                    'extractor_args': {
+                        'youtube': {
+                            'player_client': ['android', 'web'],
+                        }
+                    },
+                    'ignoreerrors': True,
+                    'no_color': True,
+                    'nocheckcertificate': True,
+                }
             
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=True)
@@ -179,7 +199,7 @@ class YouTubeAudioDownloader:
             
             if 'ffmpeg' in error_str.lower() or 'ffprobe' in error_str.lower():
                 raise Exception(
-                    f"❌ FFmpeg tidak ditemukan. "
+                    f"FFmpeg tidak ditemukan. "
                     f"Install FFmpeg atau berikan path.\n"
                     f"Windows: Download dari https://ffmpeg.org/download.html\n"
                     f"macOS: brew install ffmpeg\n"
@@ -198,7 +218,7 @@ class YouTubeAudioDownloader:
             downloaded = d.get('downloaded_bytes', 0)
             if total > 0:
                 percent = (downloaded / total) * 100
-                print(f"  ⬇️  {percent:.1f}% downloaded", end='\r')
+                print(f"  {percent:.1f}% downloaded", end='\r')
 
 
 def main():
@@ -206,17 +226,24 @@ def main():
     music_dir = os.path.expanduser('~/Music')
     
     parser = argparse.ArgumentParser(
-        description='Download audio from YouTube videos',
+        description='Download audio or video from YouTube videos',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog='''
 Examples:
-  # Download from file (to Music folder by default)
+  # Download audio from file (to Music folder by default)
   python main.py links.txt
   python main.py links.txt -o custom_folder
   
-  # Download single link
+  # Download video from file
+  python main.py links.txt --video
+  python main.py links.txt --video -o custom_folder
+  
+  # Download single audio link
   python main.py --link "https://youtu.be/xxxxx"
   python main.py --link "https://youtu.be/xxxxx" -o custom_folder
+  
+  # Download single video link
+  python main.py --link "https://youtu.be/xxxxx" --video
         '''
     )
     
@@ -225,6 +252,7 @@ Examples:
     parser.add_argument('--link', default=None, help='Download single YouTube link')
     parser.add_argument('--no-resume', action='store_true', help='Disable resume mode')
     parser.add_argument('--ffmpeg-path', default=None, help='Custom FFmpeg path')
+    parser.add_argument('--video', action='store_true', help='Download video instead of audio (default: audio)')
     
     args = parser.parse_args()
     
@@ -239,15 +267,16 @@ Examples:
         single_link = None
     else:
         parser.print_help()
-        print("\n❌ Error: Provide either links.txt file or use --link for single URL")
+        print("\nError: Provide either links.txt file or use --link for single URL")
         sys.exit(1)
     
-    downloader = YouTubeAudioDownloader(
+    downloader = YouTubeMediaDownloader(
         links_file=links_file,
         output_dir=args.output,
         resume=not args.no_resume,
         ffmpeg_path=args.ffmpeg_path,
-        single_link=single_link
+        single_link=single_link,
+        download_video=args.video
     )
     
     downloader.download()
