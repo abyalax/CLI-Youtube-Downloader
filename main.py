@@ -15,7 +15,16 @@ import argparse
 
 
 class YouTubeMediaDownloader:
-    def __init__(self, links_file, output_dir="downloads", resume=True, ffmpeg_path=None, single_link=None, download_video=False, video_only=False):
+    def __init__(
+        self,
+        links_file,
+        output_dir="downloads",
+        resume=True,
+        ffmpeg_path=None,
+        single_link=None,
+        download_video=False,
+        video_only=False,
+    ):
         """
         Initialize downloader
         
@@ -37,6 +46,9 @@ class YouTubeMediaDownloader:
         self.ffmpeg_path = ffmpeg_path
         self.download_video = download_video
         self.video_only = video_only
+        self.js_runtimes = {"node": {}}
+        self.remote_components = ["ejs:github"]
+        self.youtube_player_clients = ["web_embedded"]
         
         # Set FFmpeg location if provided
         if ffmpeg_path:
@@ -151,30 +163,44 @@ class YouTubeMediaDownloader:
     def _download_media(self, url):
         """Download audio or video from single YouTube URL"""
         try:
+            # YouTube now requires an external JS runtime plus EJS challenge solver
+            # scripts for reliable extraction. We force the working Node-based path
+            # and prefer the web_embedded client, which avoids the failing android_vr route.
+            extractor_args = {
+                'youtube': {
+                    'player_client': self.youtube_player_clients,
+                }
+            }
+
+            common_opts = {
+                'js_runtimes': self.js_runtimes,
+                'remote_components': self.remote_components,
+                'extractor_args': extractor_args,
+            }
+
             if self.video_only:
                 # Download video only (no audio)
                 ydl_opts = {
+                    **common_opts,
                     'format': 'bestvideo',
                     'outtmpl': str(self.output_dir / '%(title)s.%(ext)s'),
                     'quiet': False,
                     'no_warnings': False,
                     'socket_timeout': 30,
                     'progress_hooks': [self._progress_hook],
-                    'ignoreerrors': True,
                     'no_color': True,
                     'nocheckcertificate': True,
-                    'no_warnings': True,
                 }
             elif self.download_video:
                 # Download best video quality with audio
                 ydl_opts = {
+                    **common_opts,
                     'format': 'bestvideo+bestaudio/best',
                     'outtmpl': str(self.output_dir / '%(title)s.%(ext)s'),
                     'quiet': False,
                     'no_warnings': False,
                     'socket_timeout': 30,
                     'progress_hooks': [self._progress_hook],
-                    'ignoreerrors': True,
                     'no_color': True,
                     'nocheckcertificate': True,
                     'no_warnings': True,
@@ -183,6 +209,7 @@ class YouTubeMediaDownloader:
             else:
                 # Download audio (default)
                 ydl_opts = {
+                    **common_opts,
                     'format': 'bestaudio/best',
                     'postprocessors': [{
                         'key': 'FFmpegExtractAudio',
@@ -194,7 +221,6 @@ class YouTubeMediaDownloader:
                     'no_warnings': True,
                     'socket_timeout': 30,
                     'progress_hooks': [self._progress_hook],
-                    'ignoreerrors': True,
                     'no_color': True,
                     'nocheckcertificate': True,
                 }
