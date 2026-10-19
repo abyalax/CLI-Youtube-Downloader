@@ -456,6 +456,7 @@ class LayeredTerminal:
         self.process_logs = []
         self.active = False
         self._last_render_key = None
+        self._last_paint_at = 0.0
 
     def start(self):
         self.active = True
@@ -497,9 +498,13 @@ class LayeredTerminal:
             len(self.reports),
             len(self.process_logs),
         )
-        if key == self._last_render_key:
+        now = time.monotonic()
+        # Repaint periodically as well as on data changes. Windows terminals can
+        # invalidate an alternate-screen buffer when the window loses focus.
+        if key == self._last_render_key and now - self._last_paint_at < 0.5:
             return
         self._last_render_key = key
+        self._last_paint_at = now
 
         cursor_on = key[4]
         input_line = f"URL > {typed}{'|' if cursor_on else ' '}"[:width]
@@ -532,7 +537,7 @@ class LayeredTerminal:
 
 
 def interactive_mode(output_dir, resume=True, ffmpeg_path=None, default_mode="audio"):
-    """Run the terminal-agent-style queue without adding a chatbot."""
+    """Run the terminal-agent-style queue."""
     manager = InteractiveDownloadManager(output_dir, resume, ffmpeg_path)
     manager.start()
     terminal = LayeredTerminal(manager)
