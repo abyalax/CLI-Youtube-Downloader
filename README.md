@@ -134,6 +134,36 @@ python main.py --help # Should show help message
 
 ## 📝 Cara Penggunaan
 
+### Mode 0: Interactive Background Queue
+
+Gunakan mode ini seperti terminal agent untuk memasukkan banyak link tanpa menunggu download sebelumnya selesai:
+
+```bash
+python main.py
+```
+
+`--interactive` atau `--agent` juga dapat digunakan secara eksplisit.
+
+Setelah program berjalan, paste URL lalu tekan Enter. Default-nya `audio`, sehingga setiap URL langsung masuk ke background queue. Ubah default dengan `:type video`, `:type video-only`, atau `:type audio`. Tampilan interactive memiliki tiga layer tetap: URL input, download report, dan log proses yt-dlp. Gunakan `:status` untuk melihat antrean, `:help` untuk bantuan, dan `:quit` untuk menunggu semua task selesai lalu keluar dengan aman.
+
+Command interactive menggunakan awalan `/` dan tombol `Tab` untuk autocomplete:
+
+```text
+/type video
+/directory D:\\Downloads\\youtube
+/status
+/help
+/quit
+```
+
+Perubahan `/directory` berlaku untuk task baru; task yang sedang berjalan tetap menyelesaikan download di folder sebelumnya.
+
+Output folder dan opsi yang sama tetap tersedia, misalnya:
+
+```bash
+python main.py --interactive -o my_downloads --ffmpeg-path "C:\\ffmpeg\\bin"
+```
+
 ### Mode 1: Download dari File (Multiple Links)
 
 #### Step 1: Buat File Links
